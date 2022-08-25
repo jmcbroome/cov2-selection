@@ -50,9 +50,9 @@ def test_overlapper(tdf, query,background,maxl = 10,graph_prefix=None):
     # print("Stop Effect Size:",ssef)
     if graph_prefix != None:
         try:
-            distros = pd.concat([sdf[~sdf.Synonymous].Leaves.value_counts(normalize=True)[:10].rename("Nonsynonymous"),
-                                    sdf[sdf.Synonymous].Leaves.value_counts(normalize=True)[:10].rename("Synonymous"),
-                                    sdf[sdf.IsStop].Leaves.value_counts(normalize=True)[:10].rename("Early Stop")],axis=1)
+            distros = pd.concat([sdf[~sdf.Synonymous].Leaves.value_counts(normalize=True).sort_index()[:10].rename("Nonsynonymous"),
+                                    sdf[sdf.Synonymous].Leaves.value_counts(normalize=True).sort_index()[:10].rename("Synonymous"),
+                                    sdf[sdf.IsStop].Leaves.value_counts(normalize=True).sort_index()[:10].rename("Early Stop")],axis=1)
             distros['Leaf Count'] = distros.index
             vdf = pd.melt(distros,id_vars='Leaf Count').rename({"variable":"Type","value":"Probability"},axis=1)
             sns.barplot(x='Leaf Count',y='Probability',hue='Type',data=vdf)
@@ -92,9 +92,9 @@ def test_independent(tdf,query,maxl=10,graph_prefix=None):
 # print("Stop Effect Size:",ssef)
     if graph_prefix != None:
         try:
-            distros = pd.concat([sdf[~sdf.Synonymous].Leaves.value_counts(normalize=True)[:10].rename("Nonsynonymous"),
-                                    sdf[sdf.Synonymous].Leaves.value_counts(normalize=True)[:10].rename("Synonymous"),
-                                    sdf[sdf.IsStop].Leaves.value_counts(normalize=True)[:10].rename("Early Stop")],axis=1)
+            distros = pd.concat([sdf[~sdf.Synonymous].Leaves.value_counts(normalize=True).sort_index()[:10].rename("Nonsynonymous"),
+                                    sdf[sdf.Synonymous].Leaves.value_counts(normalize=True).sort_index()[:10].rename("Synonymous"),
+                                    sdf[sdf.IsStop].Leaves.value_counts(normalize=True).sort_index()[:10].rename("Early Stop")],axis=1)
             distros['Leaf Count'] = distros.index
             vdf = pd.melt(distros,id_vars='Leaf Count').rename({"variable":"Type","value":"Probability"},axis=1)
             sns.barplot(x='Leaf Count',y='Probability',hue='Type',data=vdf)
