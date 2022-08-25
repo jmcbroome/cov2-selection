@@ -48,16 +48,19 @@ def test_overlapper(tdf, query,background,maxl = 10,graph_prefix=None):
     ssef = np.sqrt(sstat/sum(p3))
     # print("Chisquare Stop:",spv)
     # print("Stop Effect Size:",ssef)
-    
     if graph_prefix != None:
-        distros = pd.concat([sdf[~sdf.Synonymous].Leaves.value_counts(normalize=True)[:maxl].rename("Nonsynonymous"),
-                                sdf[sdf.Synonymous].Leaves.value_counts(normalize=True)[:maxl].rename("Synonymous"),
-                                sdf[sdf.IsStop].Leaves.value_counts(normalize=True)[:maxl].rename("Early Stop")],axis=1)
-        distros['Leaf Count'] = distros.index
-        vdf = pd.melt(distros,id_vars='Leaf Count').rename({"variable":"Type","value":"Probability"},axis=1)
-        sns.barplot(x='Leaf Count',y='Probability',hue='Type',data=vdf)
-        plt.title(query+": Probability of Onward Transmission")
-        plt.savefig(graph_prefix+"_"+query+".png")
+        try:
+            distros = pd.concat([sdf[~sdf.Synonymous].Leaves.value_counts(normalize=True)[:10].rename("Nonsynonymous"),
+                                    sdf[sdf.Synonymous].Leaves.value_counts(normalize=True)[:10].rename("Synonymous"),
+                                    sdf[sdf.IsStop].Leaves.value_counts(normalize=True)[:10].rename("Early Stop")],axis=1)
+            distros['Leaf Count'] = distros.index
+            vdf = pd.melt(distros,id_vars='Leaf Count').rename({"variable":"Type","value":"Probability"},axis=1)
+            sns.barplot(x='Leaf Count',y='Probability',hue='Type',data=vdf)
+            plt.title(query+": Probability of Onward Transmission")
+            plt.savefig(graph_prefix+"_"+query+".png")
+            plt.clf()
+        except:
+            print("Unable to graph gene {}. Continuing".format(query))
     return nspv,nsef,spv,ssef,sdf.shape[0]
 
 def test_independent(tdf,query,maxl=10,graph_prefix=None):
@@ -86,16 +89,20 @@ def test_independent(tdf,query,maxl=10,graph_prefix=None):
     sstat,spv = chisquare(p3,p4)
     ssef = np.sqrt(sstat/sum(p3))
     # print("Chisquare Stop:",spv)
-    # print("Stop Effect Size:",ssef)
+# print("Stop Effect Size:",ssef)
     if graph_prefix != None:
-        distros = pd.concat([sdf[~sdf.Synonymous].Leaves.value_counts(normalize=True)[:maxl].rename("Nonsynonymous"),
-                                sdf[sdf.Synonymous].Leaves.value_counts(normalize=True)[:maxl].rename("Synonymous"),
-                                sdf[sdf.IsStop].Leaves.value_counts(normalize=True)[:maxl].rename("Early Stop")],axis=1)
-        distros['Leaf Count'] = distros.index
-        vdf = pd.melt(distros,id_vars='Leaf Count').rename({"variable":"Type","value":"Probability"},axis=1)
-        sns.barplot(x='Leaf Count',y='Probability',hue='Type',data=vdf)
-        plt.title(query+": Probability of Onward Transmission")
-        plt.savefig(graph_prefix+"_"+query+".png")
+        try:
+            distros = pd.concat([sdf[~sdf.Synonymous].Leaves.value_counts(normalize=True)[:10].rename("Nonsynonymous"),
+                                    sdf[sdf.Synonymous].Leaves.value_counts(normalize=True)[:10].rename("Synonymous"),
+                                    sdf[sdf.IsStop].Leaves.value_counts(normalize=True)[:10].rename("Early Stop")],axis=1)
+            distros['Leaf Count'] = distros.index
+            vdf = pd.melt(distros,id_vars='Leaf Count').rename({"variable":"Type","value":"Probability"},axis=1)
+            sns.barplot(x='Leaf Count',y='Probability',hue='Type',data=vdf)
+            plt.title(query+": Probability of Onward Transmission")
+            plt.savefig(graph_prefix+"_"+query+".png")
+            plt.clf()
+        except:
+            print("Unable to graph gene {}. Continuing".format(query))
     return nspv,nsef,spv,ssef,sdf.shape[0]
 
 def argparser():
@@ -110,7 +117,7 @@ def primary_pipeline(treefile, translationfile, prefix=None, output='selection.t
     t = bte.MATree(treefile)
     if not exists(translationfile):
         print("Translation file not found; performing translation")
-        subprocess.check_call("matUtils summary -i {} -g SARS-CoV-2.gtf -f NC_045512v2.fa -t {}".format(treefile,translationfile))
+        subprocess.check_call("matUtils summary -i {} -g SARS-CoV-2.gtf -f NC_045512v2.fa -t {}".format(treefile,translationfile),shell=True)
     otdf = pd.read_csv(translationfile,sep='\t').set_index("node_id")
     ##First, we mask all mutations which are reversions of previous mutations
     ##as contamination often leads to spurious recurring or highly homoplasic reversions that cannot be transmitted to descendants
