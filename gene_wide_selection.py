@@ -10,6 +10,11 @@ import subprocess
 from scipy.stats import chisquare
 
 def test_overlapper(tdf, query,background,maxl = 10,graph_prefix=None):
+    '''
+    This function performs statistical analysis of alternative reading frame ORFs that overlap a larger background gene in a different frame.
+    This works by subsetting the output to mutations which are synonymous in the background frame, and therefore should have no impact
+    from selection on the effects on the background frame. This reduces our power somewhat, but generally enough mutations are detected to draw conclusions.
+    '''
     ngene = tdf[tdf.Gene == background].set_index(['node_id',"NT"])
 
     def check_overlapper(row):
@@ -56,6 +61,9 @@ def test_overlapper(tdf, query,background,maxl = 10,graph_prefix=None):
     return nspv,nsef,spv,ssef
 
 def test_independent(tdf,query,maxl=10,graph_prefix=None):
+    '''
+    This function performs statistical analysis of the leaf count distribution of an independent single gene in the standard frame.
+    '''
     sdf = tdf[(tdf.Gene == query)]
 
     olvc = tdf[tdf.Synonymous].Leaves.value_counts(normalize=True)
