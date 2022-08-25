@@ -58,7 +58,7 @@ def test_overlapper(tdf, query,background,maxl = 10,graph_prefix=None):
         sns.barplot(x='Leaf Count',y='Probability',hue='Type',data=vdf)
         plt.title(query+": Probability of Onward Transmission")
         plt.savefig(graph_prefix+"_"+query+".png")
-    return nspv,nsef,spv,ssef
+    return nspv,nsef,spv,ssef,sdf.shape[0]
 
 def test_independent(tdf,query,maxl=10,graph_prefix=None):
     '''
@@ -96,7 +96,7 @@ def test_independent(tdf,query,maxl=10,graph_prefix=None):
         sns.barplot(x='Leaf Count',y='Probability',hue='Type',data=vdf)
         plt.title(query+": Probability of Onward Transmission")
         plt.savefig(graph_prefix+"_"+query+".png")
-    return nspv,nsef,spv,ssef
+    return nspv,nsef,spv,ssef,sdf.shape[0]
 
 def argparser():
     parser = argparse.ArgumentParser()
@@ -165,38 +165,42 @@ def primary_pipeline(treefile, translationfile, prefix=None, output='selection.t
     tdf = tdf[~tdf.NT.isin(homoplasy)]
     tdf['IsStop'] = tdf.CC.apply(lambda x:(x.split(">")[1] in ['TGA','TAA','TAG']))
     #we can now proceed to compute our statistical outputs and plots.
-    odf = {k:[] for k in ['Gene','Mpv',"Npv","Mef","Nef"]}
+    odf = {k:[] for k in ['Gene','Mpv',"Npv","Mef","Nef","MutationCount"]}
     print("Computing statistics for alternate frame genes.")
     for subgene in ['ORF9b','ORF9c']:
-        nspv,nsef,spv,ssef = test_overlapper(tdf,subgene,'N',2,prefix)
+        nspv,nsef,spv,ssef,mc = test_overlapper(tdf,subgene,'N',2,prefix)
         odf['Gene'].append(subgene)
         odf['Mpv'].append(nspv)
         odf['Npv'].append(spv)
         odf['Mef'].append(nsef)
         odf['Nef'].append(ssef)
+        odf['MutationCount'].append(mc)
     for subgene in ['ORF3b','ORF3c','ORF3d']:
-        nspv,nsef,spv,ssef = test_overlapper(tdf,subgene,'ORF3a',2,prefix)
+        nspv,nsef,spv,ssef,mc = test_overlapper(tdf,subgene,'ORF3a',2,prefix)
         odf['Gene'].append(subgene)
         odf['Mpv'].append(nspv)
         odf['Npv'].append(spv)
         odf['Mef'].append(nsef)
         odf['Nef'].append(ssef)
+        odf['MutationCount'].append(mc)
     print("Computing statistics for full gene CDSs.")
     for gene in ['ORF1ab','S','E','M','N','ORF6','ORF8','ORF10']:
-        nspv,nsef,spv,ssef = test_independent(tdf,gene,2,prefix)
+        nspv,nsef,spv,ssef,mc = test_independent(tdf,gene,2,prefix)
         odf['Gene'].append(subgene)
         odf['Mpv'].append(nspv)
         odf['Npv'].append(spv)
         odf['Mef'].append(nsef)
         odf['Nef'].append(ssef)
+        odf['MutationCount'].append(mc)
     print("Computing statistics for independent nsps.")
     for nsp in ['nsp3','nsp12_2','nsp2','nsp14','nsp13','nsp4','nsp15','nsp1','nsp16','nsp6','nsp5','nsp8','nsp10','nsp9','nsp7','nsp11','nsp12_1']:
-        nspv,nsef,spv,ssef = test_independent(tdf,nsp,2,prefix)
+        nspv,nsef,spv,ssef,mc = test_independent(tdf,nsp,2,prefix)
         odf['Gene'].append(subgene)
         odf['Mpv'].append(nspv)
         odf['Npv'].append(spv)
         odf['Mef'].append(nsef)
         odf['Nef'].append(ssef)
+        odf['MutationCount'].append(mc)
     odf = pd.DataFrame(odf)
     odf.to_csv(output,sep='\t')
     print("Complete.")
