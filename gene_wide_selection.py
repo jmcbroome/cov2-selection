@@ -107,7 +107,7 @@ def test_independent(tdf,query,maxl=10,graph_prefix=None):
 
 def argparser():
     parser = argparse.ArgumentParser()
-    parser.add_argument("-t","--tree",help="Path to a MAT protocol buffer containing the global phylogeny to analyze.")
+    parser.add_argument("-t","--tree",help="Path to a MAT protocol buffer containing the global phylogeny to analyze.",required=True)
     parser.add_argument("-r","--translation",help="Path to a translation table output from matUtils summary matching the input MAT. Will be generated if it does not already exist.", default='translation.tsv')
     parser.add_argument("-p","--prefix",help="Prefix to use for plotting output. If unused, no plots are saved.",default=None)
     parser.add_argument("-o","--output",help="Name of the output table to save statistical results to. Default is selection.tsv",default='selection.tsv')
@@ -193,7 +193,7 @@ def primary_pipeline(treefile, translationfile, prefix=None, output='selection.t
     print("Computing statistics for full gene CDSs.")
     for gene in ['ORF1ab','S','E','M','N','ORF6','ORF8','ORF10']:
         nspv,nsef,spv,ssef,mc = test_independent(tdf,gene,2,prefix)
-        odf['Gene'].append(subgene)
+        odf['Gene'].append(gene)
         odf['Mpv'].append(nspv)
         odf['Npv'].append(spv)
         odf['Mef'].append(nsef)
@@ -202,7 +202,7 @@ def primary_pipeline(treefile, translationfile, prefix=None, output='selection.t
     print("Computing statistics for independent nsps.")
     for nsp in ['nsp3','nsp12_2','nsp2','nsp14','nsp13','nsp4','nsp15','nsp1','nsp16','nsp6','nsp5','nsp8','nsp10','nsp9','nsp7','nsp11','nsp12_1']:
         nspv,nsef,spv,ssef,mc = test_independent(tdf,nsp,2,prefix)
-        odf['Gene'].append(subgene)
+        odf['Gene'].append(nsp)
         odf['Mpv'].append(nspv)
         odf['Npv'].append(spv)
         odf['Mef'].append(nsef)
