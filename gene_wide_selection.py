@@ -9,6 +9,54 @@ from os.path import exists
 import subprocess
 from scipy.stats import chisquare
 
+def make_graph(sdf, query, graph_prefix):
+    distros = pd.concat([sdf[~sdf.Synonymous].Leaves.value_counts(normalize=True).sort_index()[:10].rename("Nonsynonymous"),
+                            sdf[sdf.Synonymous].Leaves.value_counts(normalize=True).sort_index()[:10].rename("Synonymous"),
+                            sdf[sdf.IsStop].Leaves.value_counts(normalize=True).sort_index()[:10].rename("Early Stop")],axis=1)
+    distros['Leaf Count'] = distros.index
+    vdf = pd.melt(distros,id_vars='Leaf Count').rename({"variable":"Type","value":"Probability"},axis=1)
+    sns.barplot(x='Leaf Count',y='Probability',hue='Type',data=vdf)
+    plt.title(query+": Probability of Onward Transmission")
+    plt.savefig(graph_prefix+"_"+query+".png")
+    plt.clf()
+
+def build_site_table(tdf,siteout):
+    maxl=1
+    idf = {k:[] for k in ['Gene','Site','Count','NSpv','NSeffect','STpv','STeffect','SingleRate']}
+    olvc = tdf[tdf.Synonymous].Leaves.value_counts(normalize=True)
+    for key, sdf in tqdm(tdf.groupby(["Gene",'AAL'])):
+        g,site = key
+        lvc = sdf[(~sdf.Synonymous) & (~sdf.IsStop)].Leaves.value_counts()
+        if len(lvc) == 0:
+            continue
+        p1 = [lvc.get(i,0) for i in range(1,maxl+1)]
+        p1.append(sum([lvc[i] for i in lvc.index if i > maxl]))
+        p2 = [olvc.get(i,0)*sum(p1) for i in range(1,maxl+1)]
+        p2.append(sum([olvc[i] for i in olvc.index if i > maxl])*sum(p1))
+        nstat,nspv = chisquare(p1,p2)
+        nsef = np.sqrt(nstat/sum(p1))
+        
+        slvc = sdf[sdf.IsStop].Leaves.value_counts()
+        if len(slvc) > 0:
+            p3 = [slvc.get(i,0) for i in range(1,maxl+1)]
+            p3.append(sum([slvc[i] for i in slvc.index if i > maxl]))
+            p4 = [olvc.get(i,0)*sum(p3) for i in range(1,maxl+1)]
+            p4.append(sum([olvc[i] for i in olvc.index if i > maxl])*sum(p3))
+            sstat,spv = chisquare(p3,p4)
+            ssef = np.sqrt(sstat/sum(p3))
+        else:
+            ssef,spv = np.nan,np.nan
+        idf['Gene'].append(g)
+        idf['Site'].append(site)
+        idf['Count'].append(sdf[(~sdf.Synonymous) & (~sdf.IsStop)].shape[0])
+        idf['NSpv'].append(nspv)
+        idf['NSeffect'].append(nsef)
+        idf['STpv'].append(spv)
+        idf['STeffect'].append(ssef)
+        idf['SingleRate'].append(lvc.get(1,0))
+    idf = pd.DataFrame(idf)
+    idf.to_csv(siteout)
+
 def test_overlapper(tdf, query,background,maxl = 10,graph_prefix=None):
     '''
     This function performs statistical analysis of alternative reading frame ORFs that overlap a larger background gene in a different frame.
@@ -50,15 +98,7 @@ def test_overlapper(tdf, query,background,maxl = 10,graph_prefix=None):
     # print("Stop Effect Size:",ssef)
     if graph_prefix != None:
         try:
-            distros = pd.concat([sdf[~sdf.Synonymous].Leaves.value_counts(normalize=True).sort_index()[:10].rename("Nonsynonymous"),
-                                    sdf[sdf.Synonymous].Leaves.value_counts(normalize=True).sort_index()[:10].rename("Synonymous"),
-                                    sdf[sdf.IsStop].Leaves.value_counts(normalize=True).sort_index()[:10].rename("Early Stop")],axis=1)
-            distros['Leaf Count'] = distros.index
-            vdf = pd.melt(distros,id_vars='Leaf Count').rename({"variable":"Type","value":"Probability"},axis=1)
-            sns.barplot(x='Leaf Count',y='Probability',hue='Type',data=vdf)
-            plt.title(query+": Probability of Onward Transmission")
-            plt.savefig(graph_prefix+"_"+query+".png")
-            plt.clf()
+            make_graph(sdf, query, graph_prefix)
         except:
             print("Unable to graph gene {}. Continuing".format(query))
     return nspv,nsef,spv,ssef,sdf.shape[0]
@@ -92,15 +132,7 @@ def test_independent(tdf,query,maxl=10,graph_prefix=None):
 # print("Stop Effect Size:",ssef)
     if graph_prefix != None:
         try:
-            distros = pd.concat([sdf[~sdf.Synonymous].Leaves.value_counts(normalize=True).sort_index()[:10].rename("Nonsynonymous"),
-                                    sdf[sdf.Synonymous].Leaves.value_counts(normalize=True).sort_index()[:10].rename("Synonymous"),
-                                    sdf[sdf.IsStop].Leaves.value_counts(normalize=True).sort_index()[:10].rename("Early Stop")],axis=1)
-            distros['Leaf Count'] = distros.index
-            vdf = pd.melt(distros,id_vars='Leaf Count').rename({"variable":"Type","value":"Probability"},axis=1)
-            sns.barplot(x='Leaf Count',y='Probability',hue='Type',data=vdf)
-            plt.title(query+": Probability of Onward Transmission")
-            plt.savefig(graph_prefix+"_"+query+".png")
-            plt.clf()
+            make_graph(sdf, query, graph_prefix)
         except:
             print("Unable to graph gene {}. Continuing".format(query))
     return nspv,nsef,spv,ssef,sdf.shape[0]
@@ -111,9 +143,10 @@ def argparser():
     parser.add_argument("-r","--translation",help="Path to a translation table output from matUtils summary matching the input MAT. Will be generated if it does not already exist.", default='translation.tsv')
     parser.add_argument("-p","--prefix",help="Prefix to use for plotting output. If unused, no plots are saved.",default=None)
     parser.add_argument("-o","--output",help="Name of the output table to save statistical results to. Default is selection.tsv",default='selection.tsv')
+    parser.add_argument("-s","--siteout",help="Set to a name to produce a site-specific analysis table.",default=None)
     return parser.parse_args()
 
-def primary_pipeline(treefile, translationfile, prefix=None, output='selection.tsv'):
+def primary_pipeline(treefile, translationfile, prefix=None, output='selection.tsv',siteout=None):
     t = bte.MATree(treefile)
     if not exists(translationfile):
         print("Translation file not found; performing translation")
@@ -209,12 +242,15 @@ def primary_pipeline(treefile, translationfile, prefix=None, output='selection.t
         odf['Nef'].append(ssef)
         odf['MutationCount'].append(mc)
     odf = pd.DataFrame(odf)
-    odf.to_csv(output,sep='\t')
+    odf.to_csv(output,sep='\t',index=False)
+    if siteout != None:
+        build_site_table(tdf,siteout)
+
     print("Complete.")
 
 def main():
     args = argparser()
-    primary_pipeline(args.tree, args.translation, args.prefix, args.output)
+    primary_pipeline(args.tree, args.translation, args.prefix, args.output, args.siteout)
 
 if __name__ == '__main__':
     main()
