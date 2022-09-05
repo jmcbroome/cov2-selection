@@ -55,7 +55,7 @@ def build_site_table(tdf,siteout):
         idf['STeffect'].append(ssef)
         idf['SingleRate'].append(lvc.get(1,0))
     idf = pd.DataFrame(idf)
-    idf.to_csv(siteout)
+    idf.to_csv(siteout,sep='\t',index=False)
 
 def test_overlapper(tdf, query,background,maxl = 10,graph_prefix=None):
     '''
@@ -64,15 +64,17 @@ def test_overlapper(tdf, query,background,maxl = 10,graph_prefix=None):
     from selection on the effects on the background frame. This reduces our power somewhat, but generally enough mutations are detected to draw conclusions.
     '''
     ngene = tdf[tdf.Gene == background].set_index(['node_id',"NT"])
-
+    assert "Synonymous" in tdf.columns
     def check_overlapper(row):
         try:
             return ngene.loc[row.node_id,row.NT].Synonymous
         except:
             return False
     sdf = tdf[(tdf.Gene == query)]
+    assert sdf.shape[0] > 0
     sdf['NgeneSyn'] = sdf.apply(check_overlapper,axis=1)
     sdf = sdf[sdf.NgeneSyn]
+    assert "Synonymous" in sdf.columns
 
     olvc = tdf[tdf.Synonymous].Leaves.value_counts(normalize=True)
     lvc = sdf[(~sdf.Synonymous) & (~sdf.IsStop)].Leaves.value_counts()
@@ -204,6 +206,7 @@ def primary_pipeline(treefile, translationfile, prefix=None, output='selection.t
     homoplasy = [i for i in ntvc.index if ntvc[i] > thresh]
     tdf = tdf[~tdf.NT.isin(homoplasy)]
     tdf['IsStop'] = tdf.CC.apply(lambda x:(x.split(">")[1] in ['TGA','TAA','TAG']))
+    assert tdf.shape[0] > 0
     #we can now proceed to compute our statistical outputs and plots.
     odf = {k:[] for k in ['Gene','Mpv',"Npv","Mef","Nef","MutationCount"]}
     print("Computing statistics for alternate frame genes.")
