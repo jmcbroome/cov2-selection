@@ -20,8 +20,22 @@ def make_graph(sdf, query, graph_prefix):
     plt.savefig(graph_prefix+"_"+query+".png")
     plt.clf()
 
-def build_site_table(tdf,siteout):
-    maxl=1
+def collect_stats(lvc,olvc,slvc={},threshold=1):
+    #ugly solution with explicit iteration over the index because many individual values are missing and .loc doesn't allow for handling missing indeces
+    p1 = [sum([lvc[i] for i in lvc.index if i <= threshold]), sum([lvc[i] for i in lvc.index if i > threshold])]
+    p2 = [sum([olvc[i] for i in olvc.index if i <= threshold])*sum(p1), sum([olvc[i] for i in olvc.index if i > threshold])*sum(p1)]
+    nstat,nspv = chisquare(p1,p2)
+    nsef = np.sqrt(nstat/sum(p1))
+    if len(slvc) > 0:
+        p3 = [sum([slvc[i] for i in slvc.index if i <= threshold]), sum([slvc[i] for i in slvc.index if i > threshold])]
+        p4 = [sum([olvc[i] for i in olvc.index if i <= threshold])*sum(p3), sum([olvc[i] for i in olvc.index if i > threshold])*sum(p3)]
+        sstat,spv = chisquare(p3,p4)
+        ssef = np.sqrt(sstat/sum(p3))
+    else:
+        sstat,spv,ssef = np.nan,np.nan,np.nan
+    return nspv,nsef,spv,ssef
+
+def build_site_table(tdf,siteout,threshold=1):
     idf = {k:[] for k in ['Gene','Site','Count','NSpv','NSeffect','STpv','STeffect','SingleRate']}
     olvc = tdf[tdf.Synonymous].Leaves.value_counts(normalize=True)
     for key, sdf in tqdm(tdf.groupby(["Gene",'AAL'])):
@@ -29,23 +43,8 @@ def build_site_table(tdf,siteout):
         lvc = sdf[(~sdf.Synonymous) & (~sdf.IsStop)].Leaves.value_counts()
         if len(lvc) == 0:
             continue
-        p1 = [lvc.get(i,0) for i in range(1,maxl+1)]
-        p1.append(sum([lvc[i] for i in lvc.index if i > maxl]))
-        p2 = [olvc.get(i,0)*sum(p1) for i in range(1,maxl+1)]
-        p2.append(sum([olvc[i] for i in olvc.index if i > maxl])*sum(p1))
-        nstat,nspv = chisquare(p1,p2)
-        nsef = np.sqrt(nstat/sum(p1))
-        
-        slvc = sdf[sdf.IsStop].Leaves.value_counts()
-        if len(slvc) > 0:
-            p3 = [slvc.get(i,0) for i in range(1,maxl+1)]
-            p3.append(sum([slvc[i] for i in slvc.index if i > maxl]))
-            p4 = [olvc.get(i,0)*sum(p3) for i in range(1,maxl+1)]
-            p4.append(sum([olvc[i] for i in olvc.index if i > maxl])*sum(p3))
-            sstat,spv = chisquare(p3,p4)
-            ssef = np.sqrt(sstat/sum(p3))
-        else:
-            ssef,spv = np.nan,np.nan
+        slvc = sdf[(sdf.IsStop)].Leaves.value_counts()
+        nspv,nsef,spv,ssef = collect_stats(lvc,olvc,slvc,threshold=threshold)
         idf['Gene'].append(g)
         idf['Site'].append(site)
         idf['Count'].append(sdf[(~sdf.Synonymous) & (~sdf.IsStop)].shape[0])
@@ -57,7 +56,7 @@ def build_site_table(tdf,siteout):
     idf = pd.DataFrame(idf)
     idf.to_csv(siteout,sep='\t',index=False)
 
-def test_overlapper(tdf, query,background,maxl = 10,graph_prefix=None):
+def test_overlapper(tdf,query,background,threshold=1,graph_prefix=None):
     '''
     This function performs statistical analysis of alternative reading frame ORFs that overlap a larger background gene in a different frame.
     This works by subsetting the output to mutations which are synonymous in the background frame, and therefore should have no impact
@@ -79,25 +78,7 @@ def test_overlapper(tdf, query,background,maxl = 10,graph_prefix=None):
     olvc = tdf[tdf.Synonymous].Leaves.value_counts(normalize=True)
     lvc = sdf[(~sdf.Synonymous) & (~sdf.IsStop)].Leaves.value_counts()
     slvc = sdf[sdf.IsStop].Leaves.value_counts()
-    # print(olvc,lvc,slvc)
-    p1 = [lvc.get(i,0) for i in range(1,maxl+1)]
-    p1.append(sum([lvc[i] for i in lvc.index if i > maxl]))
-    p2 = [olvc.get(i,0)*sum(p1) for i in range(1,maxl+1)]
-    p2.append(sum([olvc[i] for i in olvc.index if i > maxl])*sum(p1))
-    p3 = [slvc.get(i,0) for i in range(1,maxl+1)]
-    p3.append(sum([slvc[i] for i in slvc.index if i > maxl]))
-    p4 = [olvc.get(i,0)*sum(p3) for i in range(1,maxl+1)]
-    p4.append(sum([olvc[i] for i in olvc.index if i > maxl])*sum(p3))
-    # print(p1,p2)
-    nstat,nspv = chisquare(p1,p2)
-    nsef = np.sqrt(nstat/sum(p1))
-    # print("Chisquare NS:",nspv)
-    # print("NS Effect Size:",nsef)
-    # print(p3,p4)
-    sstat,spv = chisquare(p3,p4)
-    ssef = np.sqrt(sstat/sum(p3))
-    # print("Chisquare Stop:",spv)
-    # print("Stop Effect Size:",ssef)
+    nspv,nsef,spv,ssef = collect_stats(lvc,olvc,slvc,threshold=threshold)
     if graph_prefix != None:
         try:
             make_graph(sdf, query, graph_prefix)
@@ -105,7 +86,7 @@ def test_overlapper(tdf, query,background,maxl = 10,graph_prefix=None):
             print("Unable to graph gene {}. Continuing".format(query))
     return nspv,nsef,spv,ssef,sdf.shape[0]
 
-def test_independent(tdf,query,maxl=10,graph_prefix=None):
+def test_independent(tdf,query,threshold=1,graph_prefix=None):
     '''
     This function performs statistical analysis of the leaf count distribution of an independent single gene in the standard frame.
     '''
@@ -114,24 +95,7 @@ def test_independent(tdf,query,maxl=10,graph_prefix=None):
     olvc = tdf[tdf.Synonymous].Leaves.value_counts(normalize=True)
     lvc = sdf[(~sdf.Synonymous) & (~sdf.IsStop)].Leaves.value_counts()
     slvc = sdf[sdf.IsStop].Leaves.value_counts()
-    # print(olvc,lvc,slvc)
-    p1 = [lvc.get(i,0) for i in range(1,maxl+1)]
-    p1.append(sum([lvc[i] for i in lvc.index if i > maxl]))
-    p2 = [olvc.get(i,0)*sum(p1) for i in range(1,maxl+1)]
-    p2.append(sum([olvc[i] for i in olvc.index if i > maxl])*sum(p1))
-    p3 = [slvc.get(i,0) for i in range(1,maxl+1)]
-    p3.append(sum([slvc[i] for i in slvc.index if i > maxl]))
-    p4 = [olvc.get(i,0)*sum(p3) for i in range(1,maxl+1)]
-    p4.append(sum([olvc[i] for i in olvc.index if i > maxl])*sum(p3))
-    nstat,nspv = chisquare(p1,p2)
-    nsef = np.sqrt(nstat/sum(p1))
-    # print("Chisquare NS:",nspv)
-    # print("NS Effect Size:",nsef)
-    # print(p3,p4)
-    sstat,spv = chisquare(p3,p4)
-    ssef = np.sqrt(sstat/sum(p3))
-    # print("Chisquare Stop:",spv)
-# print("Stop Effect Size:",ssef)
+    nspv,nsef,spv,ssef = collect_stats(lvc,olvc,slvc,threshold=threshold)
     if graph_prefix != None:
         try:
             make_graph(sdf, query, graph_prefix)
@@ -146,9 +110,11 @@ def argparser():
     parser.add_argument("-p","--prefix",help="Prefix to use for plotting output. If unused, no plots are saved.",default=None)
     parser.add_argument("-o","--output",help="Name of the output table to save statistical results to. Default is selection.tsv",default='selection.tsv')
     parser.add_argument("-s","--siteout",help="Set to a name to produce a site-specific analysis table.",default=None)
+    parser.add_argument("-d","--data",help="Set to a name to save the processed translation table for use with additional scripts.",default=None)
+    parser.add_argument("-c","--cutoff",help="Set the number of leaves at which to partition the data for analysis. Must be positive. Default 1",type=int,default=1)
     return parser.parse_args()
 
-def primary_pipeline(treefile, translationfile, prefix=None, output='selection.tsv',siteout=None):
+def primary_pipeline(treefile, translationfile, prefix=None, output='selection.tsv', siteout=None, data=None, cutoff=1):
     t = bte.MATree(treefile)
     if not exists(translationfile):
         print("Translation file not found; performing translation")
@@ -166,7 +132,6 @@ def primary_pipeline(treefile, translationfile, prefix=None, output='selection.t
                 for m in mutations:
                     om = m[-1] + m[1:-1] + m[0]
                     if om in ancestor.mutations:
-    #                     print(n.id,m,om)
                         to_mask.add(m)
             if len(to_mask) > maximum:
                 maskd[n.id] = to_mask
@@ -200,6 +165,8 @@ def primary_pipeline(treefile, translationfile, prefix=None, output='selection.t
     sites_to_mask = [187, 1059, 2094, 3037, 3130, 6990, 8022, 10323, 10741, 11074, 13408, 14786, 19684, 20148, 21137, 24034, 24378, 25563, 26144, 26461, 26681, 28077, 28826, 28854, 29700]
     sites_to_mask.extend([4050, 13402, 11083, 15324, 21575])
     tdf = tdf[~tdf.Loc.isin(sites_to_mask)]
+    if data != None:
+        tdf.to_csv(data,sep='\t',index=False)
     # Disable this filter for now due to the apparent importance of many highly-mutated key binding sites
     # #Finally, we mask the 2% most highly homoplasic sites, again due to the enrichment of sequencing and assembly errors at these sites
     # ntvc = tdf.NT.value_counts()
@@ -212,7 +179,7 @@ def primary_pipeline(treefile, translationfile, prefix=None, output='selection.t
     odf = {k:[] for k in ['Gene','Mpv',"Npv","Mef","Nef","MutationCount"]}
     print("Computing statistics for alternate frame genes.")
     for subgene in ['ORF9b','ORF9c']:
-        nspv,nsef,spv,ssef,mc = test_overlapper(tdf,subgene,'N',2,prefix)
+        nspv,nsef,spv,ssef,mc = test_overlapper(tdf,subgene,'N',cutoff,prefix)
         odf['Gene'].append(subgene)
         odf['Mpv'].append(nspv)
         odf['Npv'].append(spv)
@@ -220,7 +187,7 @@ def primary_pipeline(treefile, translationfile, prefix=None, output='selection.t
         odf['Nef'].append(ssef)
         odf['MutationCount'].append(mc)
     for subgene in ['ORF3b','ORF3c','ORF3d']:
-        nspv,nsef,spv,ssef,mc = test_overlapper(tdf,subgene,'ORF3a',2,prefix)
+        nspv,nsef,spv,ssef,mc = test_overlapper(tdf,subgene,'ORF3a',cutoff,prefix)
         odf['Gene'].append(subgene)
         odf['Mpv'].append(nspv)
         odf['Npv'].append(spv)
@@ -229,7 +196,7 @@ def primary_pipeline(treefile, translationfile, prefix=None, output='selection.t
         odf['MutationCount'].append(mc)
     print("Computing statistics for full gene CDSs.")
     for gene in ['ORF1ab','S','E','M','N','ORF6','ORF8','ORF10']:
-        nspv,nsef,spv,ssef,mc = test_independent(tdf,gene,2,prefix)
+        nspv,nsef,spv,ssef,mc = test_independent(tdf,gene,cutoff,prefix)
         odf['Gene'].append(gene)
         odf['Mpv'].append(nspv)
         odf['Npv'].append(spv)
@@ -238,7 +205,7 @@ def primary_pipeline(treefile, translationfile, prefix=None, output='selection.t
         odf['MutationCount'].append(mc)
     print("Computing statistics for independent nsps.")
     for nsp in ['nsp3','nsp12_2','nsp2','nsp14','nsp13','nsp4','nsp15','nsp1','nsp16','nsp6','nsp5','nsp8','nsp10','nsp9','nsp7','nsp11','nsp12_1']:
-        nspv,nsef,spv,ssef,mc = test_independent(tdf,nsp,2,prefix)
+        nspv,nsef,spv,ssef,mc = test_independent(tdf,nsp,cutoff,prefix)
         odf['Gene'].append(nsp)
         odf['Mpv'].append(nspv)
         odf['Npv'].append(spv)
@@ -248,13 +215,15 @@ def primary_pipeline(treefile, translationfile, prefix=None, output='selection.t
     odf = pd.DataFrame(odf)
     odf.to_csv(output,sep='\t',index=False)
     if siteout != None:
-        build_site_table(tdf,siteout)
+        build_site_table(tdf,siteout,threshold=cutoff)
 
     print("Complete.")
 
 def main():
     args = argparser()
-    primary_pipeline(args.tree, args.translation, args.prefix, args.output, args.siteout)
+    if args.cutoff <= 0:
+        raise ValueError("Cutoff value must be a positive integer!")
+    primary_pipeline(args.tree, args.translation, args.prefix, args.output, args.siteout, args.data, args.cutoff)
 
 if __name__ == '__main__':
     main()
