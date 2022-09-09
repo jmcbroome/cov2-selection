@@ -200,11 +200,12 @@ def primary_pipeline(treefile, translationfile, prefix=None, output='selection.t
     sites_to_mask = [187, 1059, 2094, 3037, 3130, 6990, 8022, 10323, 10741, 11074, 13408, 14786, 19684, 20148, 21137, 24034, 24378, 25563, 26144, 26461, 26681, 28077, 28826, 28854, 29700]
     sites_to_mask.extend([4050, 13402, 11083, 15324, 21575])
     tdf = tdf[~tdf.Loc.isin(sites_to_mask)]
-    #Finally, we mask the 2% most highly homoplasic sites, again due to the enrichment of sequencing and assembly errors at these sites
-    ntvc = tdf.NT.value_counts()
-    thresh = np.percentile(ntvc,98)
-    homoplasy = [i for i in ntvc.index if ntvc[i] > thresh]
-    tdf = tdf[~tdf.NT.isin(homoplasy)]
+    # Disable this filter for now due to the apparent importance of many highly-mutated key binding sites
+    # #Finally, we mask the 2% most highly homoplasic sites, again due to the enrichment of sequencing and assembly errors at these sites
+    # ntvc = tdf.NT.value_counts()
+    # thresh = np.percentile(ntvc,98)
+    # homoplasy = [i for i in ntvc.index if ntvc[i] > thresh]
+    # tdf = tdf[~tdf.NT.isin(homoplasy)]
     tdf['IsStop'] = tdf.CC.apply(lambda x:(x.split(">")[1] in ['TGA','TAA','TAG']))
     assert tdf.shape[0] > 0
     #we can now proceed to compute our statistical outputs and plots.
