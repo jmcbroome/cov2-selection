@@ -52,18 +52,21 @@ def do_grantham(raadf,graph=None):
         return None
     return regv
 
-def grantham_pipeline(fulltranslate_file,output,plot=None):
+def grantham_pipeline(fulltranslate_file,output,plot=None,aaout=None):
     odf = {k:[] for k in ['Gene','Total','Rvalue','Pvalue']}
     tdf = pd.read_csv(fulltranslate_file,sep='\t')
     tdf['RefAA'] = tdf.AA.apply(lambda x:x.split(":")[1][0])
     tdf['AltAA'] = tdf.AA.apply(lambda x:x.split(":")[1][-1])
     olvc = tdf[tdf.Synonymous].Leaves.value_counts(normalize=True)
+    aavs = []
     for g, sdf in tdf.groupby("Gene"):
         if plot != None:
             graph = plot + "_" + g
         aadf = build_effect_matrix(sdf, olvc, graph)
         #columns are the reference, row indeces are the alternatives
         raadf = aadf.melt(ignore_index=False).reset_index().rename({"index":"alternative","variable":"reference","value":"nseffect"},axis=1)
+        raadf['Gene'] = g
+        aavs.append(raadf)
         regv = do_grantham(raadf, graph)
         if regv != None:
             print(g, regv.rvalue, regv.pvalue)
@@ -74,17 +77,20 @@ def grantham_pipeline(fulltranslate_file,output,plot=None):
         else:
             print(g, "not computable")
     pd.DataFrame(odf).to_csv(output,sep='\t',index=False)
+    if aaout != None:
+        pd.concat(aavs).to_csv(aaout,sep='\t',index=False)
 
 def argparser():
     parser = argparse.ArgumentParser()
     parser.add_argument("-i","--fulltranslate",help="Path to an annotated full translation output table (from gene_wide_selection.py -d).",required=True)
     parser.add_argument("-p","--plot",help='Set a prefix to use to graph correlation and effect score heatmaps.')
-    parser.add_argument("-o","--output",help='Set a name for the output file.',default='grantham_correlation.tsv')
+    parser.add_argument("-o","--output",help='Set a name for the output summary file.',default='grantham_correlation.tsv')
+    parser.add_argument("-a","--aaout",help='Save a table containing gene-specific long-form table of amino acid transition effects.',default=None)
     return parser.parse_args()
 
 def main():
     args = argparser()
-    grantham_pipeline(args.fulltranslate,args.output,args.plot)
+    grantham_pipeline(args.fulltranslate,args.output,args.plot,args.aaout)
 
 if __name__ == '__main__':
     main()
