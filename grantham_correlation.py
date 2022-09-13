@@ -32,6 +32,7 @@ def build_effect_matrix(tdf, olvc, graph = None):
         plt.figure(figsize=[12,8])
         sns.heatmap(aadf)
         plt.savefig(graph + "_transition.png")
+        plt.clf()
     return aadf
 
 def do_grantham(raadf,graph=None):
@@ -47,6 +48,7 @@ def do_grantham(raadf,graph=None):
         if graph != None:
             sns.scatterplot(x='Grantham',y='nseffect',data=raadf.replace("*",np.nan).dropna())
             plt.savefig(graph + "_correlation.png")
+            plt.clf()
     except ValueError:
         print("Could not compute or graph correlation!")
         return None
