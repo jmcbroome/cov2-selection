@@ -22,7 +22,7 @@ def build_effect_matrix(tdf, olvc, graph = None):
             neff = nstat/sum(p1)
             #record nonsignificant synonymous substitutions
             #otherwise, leave it as nan, to represent that relationshp being ambiguous
-            if nspv < 0.05 or aaa == raa:
+            if nspv < 0.05/len(aas)**2 or aaa == raa:
                 hmap[raa].append(neff)
             else:
                 hmap[raa].append(np.nan)
