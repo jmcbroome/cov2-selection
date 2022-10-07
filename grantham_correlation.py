@@ -61,6 +61,23 @@ def grantham_pipeline(fulltranslate_file,output,plot=None,aaout=None):
     tdf['AltAA'] = tdf.AA.apply(lambda x:x.split(":")[1][-1])
     olvc = tdf[tdf.Synonymous].Leaves.value_counts(normalize=True)
     aavs = []
+    #structural protein wide analysis.
+    sdf = tdf[tdf.Gene.isin(['N',"E","M","S"])]
+    aadf = build_effect_matrix(sdf, olvc, "Genome")
+    raadf = aadf.melt(ignore_index=False).reset_index().rename({"index":"alternative","variable":"reference","value":"nseffect"},axis=1)
+    raadf['Gene'] = "Structural"
+    aavs.append(raadf)
+    regv = do_grantham(raadf, "Structural")
+    if regv != None:
+        print("Structural:", regv.rvalue, regv.pvalue)
+        odf['Gene'].append("Structural")
+        odf['Total'].append(sdf.shape[0])
+        odf['Rvalue'].append(regv.rvalue)
+        odf['Pvalue'].append(regv.pvalue)
+    else:
+        print("Structural wide not computable! Exiting")
+        exit(1)
+    #gene-specific.
     for g, sdf in tdf.groupby("Gene"):
         if plot != None:
             graph = plot + "_" + g
