@@ -8,6 +8,7 @@ import argparse
 from os.path import exists
 import subprocess
 from scipy.stats import chisquare
+from statsmodels.stats.multitest import fdrcorrection as fdrc
 
 def make_graph(sdf, query, graph_prefix):
     distros = pd.concat([sdf[~sdf.Synonymous].Leaves.value_counts(normalize=True).sort_index()[:10].rename("Nonsynonymous"),
@@ -54,6 +55,8 @@ def build_site_table(tdf,siteout,threshold=1):
         idf['STeffect'].append(ssef)
         idf['SingleRate'].append(lvc.get(1,0))
     idf = pd.DataFrame(idf)
+    idf['FDRnsPV'] = fdrc(idf.NSpv)[1]
+    idf['SingleProp'] = (idf.SingleRate/idf.Count)
     idf.to_csv(siteout,sep='\t',index=False)
 
 def test_overlapper(tdf,query,background,threshold=1,graph_prefix=None):
