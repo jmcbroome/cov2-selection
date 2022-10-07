@@ -36,11 +36,23 @@ def collect_stats(lvc,olvc,slvc={},threshold=1):
         sstat,spv,ssef = np.nan,np.nan,np.nan
     return nspv,nsef,spv,ssef
 
-def build_site_table(tdf,siteout,threshold=1):
+def build_site_table(tdf,siteout,threshold=1,statespecific=False):
     idf = {k:[] for k in ['Gene','Site','Count','NSpv','NSeffect','STpv','STeffect','SingleRate']}
+    if statespecific:
+        idf['State'] = []
     olvc = tdf[tdf.Synonymous].Leaves.value_counts(normalize=True)
-    for key, sdf in tqdm(tdf.groupby(["Gene",'AAL'])):
-        g,site = key
+    if statespecific:
+        groupkeys = ["Gene",'AA']
+    else:
+        groupkeys = ["Gene",'AAL']
+    for key, sdf in tqdm(tdf.groupby(groupkeys)):
+        if statespecific:
+            g,aastr = key
+            site = int(aastr.split(":")[1][1:-1])
+            state = aastr[-1]
+        else:
+            g,site = key
+            state = None
         lvc = sdf[(~sdf.Synonymous) & (~sdf.IsStop)].Leaves.value_counts()
         if len(lvc) == 0:
             continue
@@ -48,6 +60,8 @@ def build_site_table(tdf,siteout,threshold=1):
         nspv,nsef,spv,ssef = collect_stats(lvc,olvc,slvc,threshold=threshold)
         idf['Gene'].append(g)
         idf['Site'].append(site)
+        if statespecific:
+            idf['State'].append(state)
         idf['Count'].append(sdf[(~sdf.Synonymous) & (~sdf.IsStop)].shape[0])
         idf['NSpv'].append(nspv)
         idf['NSeffect'].append(nsef)
@@ -113,11 +127,12 @@ def argparser():
     parser.add_argument("-p","--prefix",help="Prefix to use for plotting output. If unused, no plots are saved.",default=None)
     parser.add_argument("-o","--output",help="Name of the output table to save statistical results to. Default is selection.tsv",default='selection.tsv')
     parser.add_argument("-s","--siteout",help="Set to a name to produce a site-specific analysis table.",default=None)
+    parser.add_argument("-a","--statespecific",action='store_true',help="Divide the site-specific analysis table by amino acid states (reducing statistical power in exchange for precision). Use only with -s")
     parser.add_argument("-d","--data",help="Set to a name to save the processed translation table for use with additional scripts.",default=None)
     parser.add_argument("-c","--cutoff",help="Set the number of leaves at which to partition the data for analysis. Must be positive. Default 1",type=int,default=1)
     return parser.parse_args()
 
-def primary_pipeline(treefile, translationfile, prefix=None, output='selection.tsv', siteout=None, data=None, cutoff=1):
+def primary_pipeline(treefile, translationfile, prefix=None, output='selection.tsv', siteout=None, data=None, cutoff=1, statespecific=False):
     t = bte.MATree(treefile)
     if not exists(translationfile):
         print("Translation file not found; performing translation")
@@ -218,7 +233,7 @@ def primary_pipeline(treefile, translationfile, prefix=None, output='selection.t
     odf = pd.DataFrame(odf)
     odf.to_csv(output,sep='\t',index=False)
     if siteout != None:
-        build_site_table(tdf,siteout,threshold=cutoff)
+        build_site_table(tdf,siteout,threshold=cutoff,statespecific=statespecific)
 
     print("Complete.")
 
@@ -226,7 +241,7 @@ def main():
     args = argparser()
     if args.cutoff <= 0:
         raise ValueError("Cutoff value must be a positive integer!")
-    primary_pipeline(args.tree, args.translation, args.prefix, args.output, args.siteout, args.data, args.cutoff)
+    primary_pipeline(args.tree, args.translation, args.prefix, args.output, args.siteout, args.data, args.cutoff, args.statespecific)
 
 if __name__ == '__main__':
     main()
