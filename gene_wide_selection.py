@@ -37,7 +37,7 @@ def collect_stats(lvc,olvc,slvc={},threshold=1):
     return nspv,nsef,spv,ssef
 
 def build_site_table(tdf,siteout,threshold=1,statespecific=False):
-    idf = {k:[] for k in ['Gene','Site','Count','NSpv','NSeffect','STpv','STeffect','SingleRate']}
+    idf = {k:[] for k in ['Gene','Site','Count','NSpv','NSeffect','STpv','STeffect','SingleRate','StopCount','SingleStopRate','TotalMutations']}
     if statespecific:
         idf['State'] = []
     olvc = tdf[tdf.Synonymous].Leaves.value_counts(normalize=True)
@@ -62,12 +62,15 @@ def build_site_table(tdf,siteout,threshold=1,statespecific=False):
         idf['Site'].append(site)
         if statespecific:
             idf['State'].append(state)
+        idf['TotalMutations'].append(sdf.shape[0])
         idf['Count'].append(sdf[(~sdf.Synonymous) & (~sdf.IsStop)].shape[0])
+        idf['StopCount'].append(sdf[(~sdf.Synonymous) & (sdf.IsStop)].shape[0])
         idf['NSpv'].append(nspv)
         idf['NSeffect'].append(nsef)
         idf['STpv'].append(spv)
         idf['STeffect'].append(ssef)
         idf['SingleRate'].append(lvc.get(1,0))
+        idf['SingleStopRate'].append(slvc.get(1,0))
     idf = pd.DataFrame(idf)
     idf['FDRnsPV'] = fdrc(idf.NSpv)[1]
     idf['SingleProp'] = (idf.SingleRate/idf.Count)
